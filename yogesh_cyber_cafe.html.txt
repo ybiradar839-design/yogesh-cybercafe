@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="hi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Yogesh Cyber Café Dashboard</title>
+  <style>
+    :root{--muted:#9ca3af;--accent:#06b6d4}
+    *{box-sizing:border-box}
+    body{font-family:Inter,system-ui,Segoe UI,Roboto,'Noto Sans',Arial;background:linear-gradient(180deg,#071024 0%,#071a2b 100%);color:#e6eef6;max-width:1200px;margin:20px auto;padding:24px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    h1{font-size:1.5rem;margin:0;color:#06b6d4;text-shadow:0 0 10px #06b6d4}
+    .subtitle{color:var(--muted);font-size:0.95rem}
+    .controls{display:flex;gap:10px;align-items:center}
+    input[type="search"]{min-width:360px;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);color:inherit;font-size:1rem}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:18px}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.03);padding:14px;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,0.6);transition:transform .14s ease}
+    .card:hover{transform:translateY(-6px)}
+    .card h3{margin:0 0 6px 0;font-size:1rem}
+    .tags{font-size:0.85rem;color:var(--muted);margin-bottom:10px}
+    .actions{display:flex;gap:8px}
+    .link{display:inline-block;padding:8px 10px;border-radius:10px;text-decoration:none;border:1px solid rgba(255,255,255,0.06);background:transparent;color:inherit;font-size:0.95rem}
+    .link.primary{background:linear-gradient(90deg,var(--accent),#7dd3fc);color:#042029;border:none}
+    .footer{margin-top:18px;color:var(--muted);font-size:0.9rem}
+    @media(max-width:980px){.grid{grid-template-columns:repeat(2,1fr)}input[type="search"]{min-width:200px}}
+    @media(max-width:640px){.grid{grid-template-columns:1fr};header{flex-direction:column;align-items:flex-start;gap:10px}}
+    .icon{width:48px;height:48px;border-radius:10px;background:rgba(255,255,255,0.03);display:inline-flex;align-items:center;justify-content:center;margin-right:10px;font-size:20px}
+    .topbar{display:flex;align-items:center}
+    .badge{font-size:0.75rem;padding:6px 8px;border-radius:999px;background:rgba(255,255,255,0.03);color:var(--muted);margin-left:8px}
+    /* simple modal */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:999}
+    .modal{background:#041829;padding:18px;border-radius:12px;max-width:420px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.04)}
+    .modal h4{margin:0 0 8px 0}
+    .field{margin-bottom:10px}
+    .field input{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);color:inherit}
+    .row{display:flex;gap:8px}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="topbar">
+      <div class="icon">🧾</div>
+      <div>
+        <h1>Yogesh Cyber Café Dashboard <span class="badge">Free Portals</span></h1>
+        <div class="subtitle">Free govt & daily portals — ek click me</div>
+      </div>
+    </div>
+    <div class="controls">
+      <input id="q" type="search" placeholder="Search (Aadhaar, PAN, DigiLocker...)" oninput="filter()" />
+      <button class="link" onclick="resetFilters()">Reset</button>
+      <button id="addBtn" class="link primary" style="padding:8px 12px" onclick="showAddModal()">+ Add Portal</button>
+    </div>
+  </header>
+
+  <div class="grid" id="list"></div>
+
+  <div class="footer">
+    Agar "This content is blocked" aa raha hai, pehle right-click -> Open link in new tab try karo. Agar local file use kar rahe ho to Live Server (VSCode) ya `python -m http.server` se run karo.
+  </div>
+
+  <!-- Modal (hidden by default) -->
+  <template id="modalTpl">
+    <div class="modal-backdrop" id="modal">
+      <div class="modal" role="dialog" aria-modal="true">
+        <h4>Add Custom Portal</h4>
+        <div class="field"><input id="portalName" placeholder="Portal name (e.g. SSP Karnataka)" /></div>
+        <div class="field"><input id="portalURL" placeholder="Portal URL (https://...)" /></div>
+        <div class="row"><button class="link primary" id="savePortalBtn">Save</button><button class="link" id="cancelPortalBtn">Cancel</button></div>
+        <div style="margin-top:8px;color:var(--muted);font-size:0.85rem">Custom portals are saved in your browser (localStorage). Use delete button on a custom card to remove.</div>
+      </div>
+    </div>
+  </template>
+
+<script>
+// Base portals
+const basePortals = [
+  {title:'Gov Services (services.india.gov.in)', url:'https://services.india.gov.in', tags:['Aadhaar','PAN','Certificates']},
+  {title:'DigiLocker', url:'https://digilocker.gov.in', tags:['Documents']},
+  {title:'UIDAI - MyAadhaar', url:'https://myaadhaar.uidai.gov.in', tags:['Aadhaar']},
+  {title:'e-Aadhaar (eaadhaar.uidai.gov.in)', url:'https://eaadhaar.uidai.gov.in', tags:['Aadhaar']},
+  {title:'UMANG', url:'https://web.umang.gov.in', tags:['UMANG']},
+  {title:'Income Tax (e-Filing)', url:'https://www.incometax.gov.in', tags:['e-Filing']},
+  {title:'PAN Services (NSDL)', url:'https://www.onlineservices.nsdl.com/paam/endUserRegisterContact.html', tags:['PAN','Card']},
+  {title:'PAN Services (UTI)', url:'https://www.pan.utiitsl.com', tags:['PAN','Apply']},
+  {title:'Passport Seva', url:'https://portal2.passportindia.gov.in', tags:['Passport']},
+  {title:'Voter Services (ECI)', url:'https://voters.eci.gov.in', tags:['Voter ID']},
+  {title:'NVSP (National Voter Services Portal)', url:'https://nvsp.in', tags:['Voter','Registration']},
+  {title:'eShram', url:'https://eshram.gov.in', tags:['eShram']},
+  {title:'PM Kisan', url:'https://pmkisan.gov.in', tags:['PM Kisan']},
+  {title:'Ayushman Bharat (PM-JAY)', url:'https://www.pmjay.gov.in', tags:['Health']},
+  {title:'EPFO', url:'https://www.epfindia.gov.in', tags:['EPF']},
+  {title:'ESIC', url:'https://www.esic.nic.in', tags:['ESIC']},
+  {title:'NCS (Career)', url:'https://ncs.gov.in', tags:['Jobs']},
+  {title:'India Post', url:'https://www.indiapost.gov.in', tags:['Post']},
+  {title:'Indian Railways (Train Enquiries)', url:'https://www.indianrail.gov.in', tags:['Railways','PNR','Trains']},
+  {title:'SmallPDF', url:'https://smallpdf.com', tags:['PDF']},
+  {title:'iLoveIMG', url:'https://www.iloveimg.com', tags:['Image']},
+  {title:'Convertio', url:'https://convertio.co', tags:['Convert']},
+  {title:'Google Forms', url:'https://forms.google.com', tags:['Forms']},
+  {title:'BBPS (Bharat BillPay)', url:'https://www.bharatbillpay.org', tags:['Bills']},
+  {title:'Parivahan (VAHAN / Driving/RC)', url:'https://parivahan.gov.in', tags:['Vehicle','RC','Driving']},
+  {title:'National Scholarship Portal', url:'https://scholarships.gov.in', tags:['Scholarship','Education']},
+  {title:'MGNREGA (NREGA)', url:'https://nrega.nic.in', tags:['NREGA','Employment']},
+  {title:'eCourts Services', url:'https://ecourts.gov.in', tags:['Courts','Case Status']},
+  {title:'PFMS (Public Financial Management)', url:'https://pfms.nic.in', tags:['Payments','Govt Payments']},
+  {title:'GST Portal', url:'https://www.gst.gov.in', tags:['GST','Tax']},
+  {title:'MCA Services (Ministry of Corporate Affairs)', url:'https://www.mca.gov.in', tags:['Company','LLP']},
+  {title:'e-Hospital / Health Portals', url:'https://ehr.gov.in', tags:['Health','Hospital']},
+  {title:'National Portal of India', url:'https://www.india.gov.in', tags:['Portal','Info']},
+  {title:'CINS (Consumer Helpline)', url:'https://consumerhelpline.gov.in', tags:['Consumer']},
+  {title:'NFSA / Ration Card', url:'https://nfsa.gov.in', tags:['Ration','NFSA']},
+  {title:'Jeevan Pramaan (Pension)', url:'https://jeevanpramaan.gov.in', tags:['Pension']},
+  {title:'ShramSuvidha (Labour)', url:'https://shramsuvidha.gov.in', tags:['Labour']},
+  {title:'E-District (State Services)', url:'https://edistrict.gov.in', tags:['State Services']},
+  {title:'Seva Sindhu (Karnataka)', url:'https://sevasindhu.karnataka.gov.in', tags:['State','Karnataka']},
+  {title:'BHIM UPI', url:'https://bhimupi.org.in', tags:['UPI','Payments']},
+  {title:'Election Commission (eci.gov.in)', url:'https://eci.gov.in', tags:['Elections']},
+  {title:'PM-WANI (WiFi)', url:'https://pmwani.gov.in', tags:['WiFi','PM-WANI']},
+  {title:'RTI Online', url:'https://rtionline.gov.in', tags:['RTI']},
+  {title:'Cyber Crime Reporting', url:'https://cybercrime.gov.in', tags:['Cybercrime']},
+  {title:'PM Jan Dhan (PMJDY)', url:'https://pmjdy.gov.in', tags:['Banking','Jan Dhan']},
+  {title:'Soil Health Card', url:'https://soilhealth.dac.gov.in', tags:['Agriculture']},
+  {title:'Digital India', url:'https://digitalindia.gov.in', tags:['DigitalIndia']},
+  {title:'MyGov India', url:'https://mygov.in', tags:['Participate']},
+  {title:'SSP Scholarship (Karnataka)', url:'https://ssp.karnataka.gov.in', tags:['Scholarship','Karnataka']}
+];
+
+// localStorage key
+const STORAGE_KEY = 'yogesh_custom_portals_v1';
+
+function loadCustomPortals(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return [];
+    return JSON.parse(raw);
+  }catch(e){return []}
+}
+function saveCustomPortals(list){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+}
+
+function getAllPortals(){
+  const customs = loadCustomPortals();
+  // show custom portals first
+  return [...customs, ...basePortals];
+}
+
+function makeCard(p, isCustom=false){
+  const div = document.createElement('div');
+  div.className='card';
+  div.dataset.title = p.title.toLowerCase();
+  div.dataset.tags = (p.tags||[]).join(' ').toLowerCase();
+  const title = `<h3>${p.title}${isCustom?" <small style='font-size:0.8rem;color:var(--muted)'> (Custom)</small>":""}</h3>`;
+  const tags = `<div class="tags">${(p.tags||[]).join(' · ')}</div>`;
+  const deleteBtn = isCustom?`<button class="link" onclick="deleteCustom('${encodeURIComponent(p.url)}')">Delete</button>`:'';
+  const actions = `<div class="actions"><button class="link primary" onclick="openSafe('${encodeURIComponent(p.url)}')">Open</button><button class="link" onclick="copyLink('${p.url}')">Copy URL</button>${deleteBtn}</div>`;
+  div.innerHTML = title + tags + actions;
+  return div;
+}
+
+function render(){
+  const list = document.getElementById('list');
+  list.innerHTML='';
+  const customs = loadCustomPortals();
+  // custom first
+  customs.forEach(p=> list.appendChild(makeCard(p,true)));
+  basePortals.forEach(p=> list.appendChild(makeCard(p,false)));
+}
+
+function filter(){
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const cards = document.querySelectorAll('#list .card');
+  cards.forEach(c=>{
+    const text = c.dataset.title + ' ' + c.dataset.tags;
+    c.style.display = text.includes(q) ? '' : 'none';
+  });
+}
+function resetFilters(){document.getElementById('q').value='';filter();}
+
+function copyLink(url){navigator.clipboard?.writeText(url).then(()=>alert('URL copy ho gaya')).catch(()=>prompt('Copy manually, yeh URL hai:',url));}
+
+function openSafe(encodedUrl){
+  const url = decodeURIComponent(encodedUrl);
+  try{
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.style.display='none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    return;
+  }catch(e){}
+  try{const w = window.open(url, '_blank', 'noopener,noreferrer'); if(w) return;}catch(e){}
+  try{window.location.href = url;}catch(err){
+    alert('Browser ne external navigation block kar diya. Right-click -> Open link in new tab ya Copy URL karke manually paste karo.');
+  }
+}
+
+// Add portal modal logic
+function showAddModal(){
+  const tpl = document.getElementById('modalTpl');
+  const node = tpl.content.cloneNode(true);
+  document.body.appendChild(node);
+  const modal = document.getElementById('modal');
+  const name = document.getElementById('portalName');
+  const url = document.getElementById('portalURL');
+  document.getElementById('cancelPortalBtn').onclick = () => modal.remove();
+  document.getElementById('savePortalBtn').onclick = () => {
+    const n = name.value.trim();
+    let u = url.value.trim();
+    if(!n || !u){alert('Dono fields bharna zaroori hai');return}
+    if(!/^https?:\/\//i.test(u)) u = 'https://'+u;
+    addCustom({title:n,url:u,tags:[]});
+    modal.remove();
+  };
+}
+
+function addCustom(p){
+  const list = loadCustomPortals();
+  // avoid dup by url
+  if(list.find(x=>x.url===p.url)){
+    alert('Ye portal pehle se added hai');
+    render();
+    return;
+  }
+  list.unshift(p);
+  saveCustomPortals(list);
+  render();
+}
+
+function deleteCustom(encodedUrl){
+  const url = decodeURIComponent(encodedUrl);
+  if(!confirm('Kya aap is custom portal ko delete karna chahte hain?')) return;
+  let list = loadCustomPortals();
+  list = list.filter(p=>p.url !== url);
+  saveCustomPortals(list);
+  render();
+}
+
+// init
+render();
+
+</script>
+</body>
+</html>
